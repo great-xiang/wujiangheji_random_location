@@ -237,6 +237,9 @@ random_location = {
 
 cm:add_first_tick_callback(function() random_location:Initialise() end);
 function random_location:Initialise()
+    if cm:get_saved_value("random_location_triggered") then
+        return -- 如果已触发过，不执行任何操作
+    end
     core:add_listener("RandomLocationEventTrigger", "FactionTurnStart",
         function(context) return context:query_model():turn_number() == 1; end,
         --Determine the age
@@ -247,15 +250,17 @@ function random_location:Initialise()
                 self:Age125()
             elseif cm:query_model():campaign_name() == "3k_dlc05_start_pos" or cm:query_model():campaign_name() == "3k_main_campaign_map" then
                 self:Age_190_194()
-                --"3k_dlc07_start_pos"
             else
             end
+            -- 标记脚本已触发
+            cm:set_saved_value("random_location_triggered", true)
         end
         , false);
 end
 
 function random_location:Age_190_194()
-    --------------------------------------------------------
+    --设置外交
+    self:diplomacy_peace()
 
     local yellow_turban = "3k_main_faction_yellow_turban_generic"
     --  go through factions and prepare armies
@@ -320,7 +325,6 @@ function random_location:Age_190_194()
     self:MoveArmy()
     self:RemoveMission()
     self:reset_camera()
-    ---------------------------------------------------------
 end
 
 function random_location:Age251()
@@ -351,8 +355,6 @@ function random_location:Age251()
     end
     --进行分配
     for i, faction_key in ipairs(self.target_factions) do
-        ModLog(i)
-        ModLog(randomelist[i])
         for j, v in ipairs(self.region251[randomelist[i]]) do
             cm:modify_region(v):settlement_gifted_as_if_by_payload(cm:modify_faction(faction_key));
         end
@@ -483,8 +485,6 @@ function random_location:SetRandomRegion(faction_key, received_faction)
     if target_region then
         cm:modify_region(target_region):settlement_gifted_as_if_by_payload(cm:modify_faction(faction_key));
         --ModLog("give " .. target_region .. " to " .. faction_key);
-    else
-        --ModLog("Error: No regions available.");
     end
 end
 
@@ -603,4 +603,22 @@ function random_location:reset_camera()
     if duration > 0 then
         cm:scroll_camera_from_current(duration, true, { new_capital_x, new_capital_y, 8, b, 10 });
     end;
+end
+
+function random_location:diplomacy_peace()
+    -- 遍历所有派系并执行和平处理
+    cm:query_model():world():faction_list():foreach(function(filter_faction1)
+        if not filter_faction1:is_dead() and not filter_faction1:name() ~= "3k_main_faction_yellow_turban_generic" then
+            cm:query_model():world():faction_list():foreach(function(filter_faction2)
+                if not filter_faction2:is_dead() and not filter_faction2:name() ~= "3k_main_faction_yellow_turban_generic" then
+                    if filter_faction1:name() ~= filter_faction2:name() then
+                        diplomacy_manager:apply_automatic_deal_between_factions(filter_faction1:name(),
+                            filter_faction2:name(), "data_defined_situation_peace", false)
+                        diplomacy_manager:apply_automatic_deal_between_factions(filter_faction1:name(),
+                            "3k_main_faction_yellow_turban_generic", "data_defined_situation_war_proposer_to_recipient", false)
+                    end
+                end
+            end)
+        end
+    end)
 end
