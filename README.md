@@ -1,1 +1,1 @@
-# wujiangheji_random_location
+# 全面战争三国 武将合集mod的随机开局地盘的lua代码
