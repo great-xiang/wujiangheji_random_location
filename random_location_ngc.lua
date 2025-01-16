@@ -2,19 +2,14 @@ random_location = {
     target_factions = {},
     capital_regions = {},
     minor_regions = {},
-    pass_regions = {
+    bad_regions = {
         "3k_dlc06_gu_pass",
-        "3k_dlc06_hangu_pass",
         "3k_dlc06_hulao_pass",
         "3k_dlc06_jiameng_pass",
         "3k_dlc06_kui_pass",
         "3k_dlc06_qi_pass",
-        "3k_dlc06_san_pass",
-        "3k_dlc06_tong_pass",
-        "3k_dlc06_wu_pass",
         "3k_dlc06_liaodong_capital",
         "3k_dlc06_liaodong_resource_1",
-        --辽西
         "3k_main_yu_capital",
         "3k_main_yu_resource_1",
         "3k_main_youzhou_capital",
@@ -39,7 +34,7 @@ random_location = {
         "3k_main_guangling_resource_1",
         "3k_main_guangling_resource_2",
         "3k_main_luling_capital",
-        "3k_main_luling__capital",
+        "3k_main_luling_resource_1",
         "3k_main_jianan_capital",
         "3k_main_jianan_resource_1",
         "3k_main_jianan_resource_2",
@@ -60,7 +55,6 @@ random_location = {
         "3k_dlc06_yunnan_resource_1",
         "3k_dlc06_yunnan_resource_2",
     },
-
     prohibited_regions = {
         ["3k_main_campaign_map"] = {
             "3k_main_changan_capital",
@@ -70,6 +64,7 @@ random_location = {
             "3k_dlc06_san_pass",
             "3k_dlc06_wu_pass",
             "3k_dlc06_tong_pass",
+            "3k_dlc06_hangu_pass",
             "3k_main_yizhou_island_capital",
             "3k_main_yizhou_island_resource_1"
         },
@@ -87,36 +82,10 @@ random_location = {
             "3k_main_yizhou_island_capital",
             "3k_main_yizhou_island_resource_1"
         },
-
-        ["8p_start_pos"] = {
-            "3k_main_luoyang_capital",
-            "3k_main_luoyang_resource_1",
-            "3k_dlc06_hulao_pass",
-            "3k_dlc06_hangu_pass",
-            "3k_main_yizhou_island_capital",
-            "3k_main_yizhou_island_resource_1",
-            --nanman's location
-            "3k_main_jiaozhi_resource_2",
-            "3k_dlc06_jiaozhi_resource_3",
-            "3k_dlc06_yunnan_capital",
-            "3k_dlc06_yunnan_resource_1",
-            "3k_dlc06_yunnan_resource_2",
-            "3k_main_jianning_capital",
-            "3k_main_jianning_resource_1",
-            "3k_main_jianning_resource_2",
-            "3k_dlc06_jianning_resource_3",
-            "3k_dlc06_yongchang_capital",
-            "3k_dlc06_yongchang_resource_1",
-            "3k_main_zangke_capital",
-            "3k_main_zangke_resource_1",
-            "3k_main_zangke_resource_2",
-        }
     },
-
     invalid_factions = {
         "3k_dlc04_faction_rebels",
         "3k_dlc06_faction_nanman_rebels",
-        "3k_dlc07_faction_shanyue_rebels",
         "3k_dlc07_faction_shanyue_rebels_separatists",
         "3k_main_faction_han_empire",
         "3k_main_faction_han_empire_separatists",
@@ -279,57 +248,59 @@ function random_location:Age_190_194()
     cm:query_model():world():region_manager():region_list():filter(function(filter_region)
         return not table.contains(self.prohibited_regions[cm:query_model():campaign_name()], filter_region:name())
     end):foreach(function(filter_region)
-        -- give region to yellow_turban
-        cm:modify_model():get_modify_region(filter_region):settlement_gifted_as_if_by_payload(cm:modify_faction(
-            yellow_turban));
-        if not table.contains(self.pass_regions, filter_region:name()) then
+        if not table.contains(self.bad_regions, filter_region:name()) then
             if filter_region:is_province_capital() then
-                table.insert(self.capital_regions, filter_region:name());
-            else
-                table.insert(self.minor_regions, filter_region:name());
-            end;
-        end;
-    end);
-
-    -- allocate regions for factions
-    --ModLog("allocate capital_regions for factions")
-    for k, faction_key in ipairs(self.target_factions) do
-        --ModLog("Processing faction: " .. tostring(faction_key))
-        self:SetRandomRegion(faction_key, yellow_turban);
-    end;
-
-
-    -- Allocate entire province to factions
-    --ModLog("Allocating entire commandery to factions")
-    for k, faction_key in ipairs(self.target_factions) do
-        --ModLog("Processing faction: " .. tostring(faction_key))
-        local faction = self:get_faction_by_name(faction_key)
-        -- find captial's resources
-        local resource_points = {}
-        cm:query_model():world():region_manager():region_list():foreach(function(region)
-            if region:province_name() == faction:capital_region():province_name() then
-                table.insert(resource_points, region:name())
-            end
-        end)
-        for _, minor_region_name in pairs(resource_points) do
-            if table.contains(self.minor_regions, minor_region_name) then
-                --ModLog("Assigning region " .. minor_region_name .. " to faction " .. faction_key)
-                cm:modify_region(cm:query_region(minor_region_name)):settlement_gifted_as_if_by_payload(
-                    cm:modify_faction(faction_key))
-                self:remove_table_value(self.minor_regions, minor_region_name)
+                table.insert(self.capital_regions, filter_region:name())
             end
         end
+    end)
+    -- 分配都城
+    for k, faction_key in ipairs(self.target_factions) do
+        if not table.is_empty(self.capital_regions) then
+            capital_region_name = self.capital_regions[cm:random_int(1, #self.capital_regions)]
+            self:delete_table_value(self.capital_regions, capital_region_name)
+            cm:modify_region(capital_region_name):settlement_gifted_as_if_by_payload(cm:modify_faction(faction_key))
+        end
+    end
+    -- 剩下的地盘都给黄巾乱军
+    if not table.is_empty(self.capital_regions) then
+        for k, capital_region_name in ipairs(self.capital_regions) do
+            local province_name = cm:query_region(capital_region_name):province_name()
+            cm:query_model():world():region_manager():region_list():foreach(function(filter_region)
+                if filter_region:province_name() == province_name then
+                    cm:modify_region(filter_region):settlement_gifted_as_if_by_payload(cm:modify_faction(
+                        yellow_turban))
+                end
+            end)
+        end
+    end
+    -- 垃圾的地盘都给黄巾乱军
+    for k, region_name in ipairs(self.bad_regions) do
+        cm:query_model():world():region_manager():region_list():foreach(function(filter_region)
+            if filter_region:name() == region_name then
+                cm:modify_region(filter_region):settlement_gifted_as_if_by_payload(cm:modify_faction(yellow_turban))
+            end
+        end)
+    end
+
+    --分配资源点
+    for k, faction_key in ipairs(self.target_factions) do
+        cm:query_model():world():region_manager():region_list():foreach(function(filter_region)
+            if not filter_region:is_province_capital() then
+                if filter_region:province_name() == cm:query_faction(faction_key):capital_region():province_name() then
+                    cm:modify_region(filter_region):settlement_gifted_as_if_by_payload(cm:modify_faction(faction_key))
+                end
+            end
+        end)
     end
 
     --把军队都移到都城
-    self:MoveArmy()
+    self:move_army()
     self:RemoveMission()
     self:reset_camera()
 end
 
 function random_location:Age251()
-    local liu_hong = "ngc_custom_faction_liu_hong";
-
     --遍历派系,除了刘宏、孟获、木鹿
     cm:query_model():world():faction_list():foreach(function(filter_faction)
         if filter_faction:name() ~= "3k_dlc06_faction_nanman_king_mulu" and filter_faction:name() ~= "ngc_custom_faction_liu_hong"
@@ -337,14 +308,6 @@ function random_location:Age251()
             table.insert(self.target_factions, filter_faction:name())
         end
     end)
-    --  遍历地区
-    cm:query_model():world():region_manager():region_list():filter(function(filter_region)
-        return not table.contains(self.prohibited_regions[cm:query_model():campaign_name()], filter_region:name())
-    end):foreach(function(filter_region)
-        -- 地盘都给刘宏
-        cm:modify_model():get_modify_region(filter_region):settlement_gifted_as_if_by_payload(cm:modify_faction(liu_hong));
-    end);
-
     -- allocate regions for factions
     --生成一个随机序列
     math.randomseed(os.time())
@@ -356,16 +319,15 @@ function random_location:Age251()
     --进行分配
     for i, faction_key in ipairs(self.target_factions) do
         for j, v in ipairs(self.region251[randomelist[i]]) do
-            cm:modify_region(v):settlement_gifted_as_if_by_payload(cm:modify_faction(faction_key));
+            cm:modify_region(v):settlement_gifted_as_if_by_payload(cm:modify_faction(faction_key))
         end
-    end;
-    self:MoveArmy();
+    end
+    self:move_army()
     self:reset_camera()
-    ---------------------------------------------------------
 end
 
 function random_location:Age125()
-    local pass_regions_125 = {
+    local destroy_regions = {
         "3k_dlc06_gu_pass",
         "3k_dlc06_hangu_pass",
         "3k_dlc06_hulao_pass",
@@ -384,66 +346,64 @@ function random_location:Age125()
         "3k_dlc06_jiuzhen_capital",
         "3k_dlc06_jiuzhen_resource_1",
         "3k_main_yizhou_island_capital",
-        "3k_main_yizhou_island_resource_1"
+        "3k_main_yizhou_island_resource_1",
+        "3k_main_tongan_capital",
+        "3k_main_tongan_resource_1",
+        "3k_main_dongou_capital",
+        "3k_main_dongou_resource_1"
     }
+    --毁灭无用地区
+    for k, region_name in ipairs(destroy_regions) do
+        cm:query_model():world():region_manager():region_list():foreach(function(region)
+            if region:name() == region_name then
+                if region:can_raze_and_abandon_settlement_without_attacking() then
+                    cm:modify_model():get_modify_region(region):raze_and_abandon_settlement_without_attacking()
+                end
+            end
+        end)
+    end
 
-    local han_empire = "3k_main_faction_han_empire";
 
-    --  go through factions
+    --  遍历派系
     cm:query_model():world():faction_list():foreach(function(filter_faction)
         if not table.contains(self.invalid_factions, filter_faction:name()) and not filter_faction:is_dead() then
             table.insert(self.target_factions, filter_faction:name())
         end
     end)
 
-    --  go through region
+    --  遍历地区
     cm:query_model():world():region_manager():region_list():foreach(function(filter_region)
-        -- give region to han_empire
-        cm:modify_model():get_modify_region(filter_region):settlement_gifted_as_if_by_payload(cm:modify_faction(
-            han_empire));
-        if not table.contains(pass_regions_125, filter_region:name()) then
+        if not table.contains(destroy_regions, filter_region:name()) then
             if filter_region:is_province_capital() then
-                table.insert(self.capital_regions, filter_region:name());
-            else
-                table.insert(self.minor_regions, filter_region:name());
-            end;
-        end;
-    end);
-
-    -- allocate regions for factions
-    --ModLog("allocate capital_regions for factions")
-    for k, faction_key in ipairs(self.target_factions) do
-        --ModLog("Processing faction: " .. tostring(faction_key))
-        self:SetRandomRegion(faction_key, han_empire);
-    end;
-
-
-    -- Allocate entire province to factions
-    --ModLog("Allocating entire commandery to factions")
-    for k, faction_key in ipairs(self.target_factions) do
-        --ModLog("Processing faction: " .. tostring(faction_key))
-        local faction = self:get_faction_by_name(faction_key)
-        -- find captial's resources
-        local resource_points = {}
-        cm:query_model():world():region_manager():region_list():foreach(function(region)
-            if region:province_name() == faction:capital_region():province_name() then
-                table.insert(resource_points, region:name())
-            end
-        end)
-        for _, minor_region_name in pairs(resource_points) do
-            if table.contains(self.minor_regions, minor_region_name) then
-                --ModLog("Assigning region " .. minor_region_name .. " to faction " .. faction_key)
-                cm:modify_region(cm:query_region(minor_region_name)):settlement_gifted_as_if_by_payload(
-                    cm:modify_faction(faction_key))
-                self:remove_table_value(self.minor_regions, minor_region_name)
+                table.insert(self.capital_regions, filter_region:name())
             end
         end
+    end)
+
+    -- 分配都城
+    for k, faction_key in ipairs(self.target_factions) do
+        if not table.is_empty(self.capital_regions) then
+            capital_region_name = self.capital_regions[cm:random_int(1, #self.capital_regions)]
+            self:delete_table_value(self.capital_regions, capital_region_name)
+            cm:modify_region(capital_region_name):settlement_gifted_as_if_by_payload(cm:modify_faction(faction_key))
+        end
     end
-    self:MoveArmy();
+
+    --分配资源点
+    for k, faction_key in ipairs(self.target_factions) do
+        cm:query_model():world():region_manager():region_list():foreach(function(filter_region)
+            if not filter_region:is_province_capital() then
+                if filter_region:province_name() == cm:query_faction(faction_key):capital_region():province_name() then
+                    cm:modify_region(filter_region):settlement_gifted_as_if_by_payload(cm:modify_faction(faction_key))
+                end
+            end
+        end)
+    end
+    self.move_army()
     self:reset_camera()
 end
 
-function random_location:MoveArmy()
+function random_location:move_army()
     -- 遍历所有派系
     cm:query_model():world():faction_list():foreach(function(filter_faction)
         -- 判断派系是否有领土
@@ -454,8 +414,7 @@ function random_location:MoveArmy()
                 local filter_force = filter_faction:military_force_list():item_at(i)
                 local region_x = query_capital:settlement():logical_position_x() + math.random(1200) / 100 - 6
                 local region_y = query_capital:settlement():logical_position_y() + math.random(1200) / 100 - 6
-                if not misc:is_transient_character(filter_force:general_character())
-                    and not filter_force:unit_list():is_empty() then
+                if not misc:is_transient_character(filter_force:general_character()) then
                     local force_general = filter_force:general_character()
                     local found_pos, x, y = filter_faction:get_valid_spawn_location_near(region_x, region_y, 10, false)
                     if not found_pos then
@@ -470,15 +429,15 @@ function random_location:MoveArmy()
     end)
 end
 
-function random_location:SetRandomRegion(faction_key, received_faction)
+function random_location:set_random_region(faction_key)
     --ModLog("Capital regions count: " .. #self.capital_regions)
     --ModLog("Minor regions count: " .. #self.minor_regions)
     if not table.is_empty(self.capital_regions) then
         target_region = self.capital_regions[cm:random_int(1, #self.capital_regions)];
-        self:remove_table_value(self.capital_regions, target_region);
+        self:delete_table_value(self.capital_regions, target_region);
     elseif not table.is_empty(self.minor_regions) then
         target_region = self.minor_regions[cm:random_int(1, #self.minor_regions)];
-        self:remove_table_value(self.minor_regions, target_region);
+        self:delete_table_value(self.minor_regions, target_region);
     else
         target_region = nil
     end
@@ -573,7 +532,7 @@ function random_location:RemoveMission()
     --ModLog("RemoveMission Done!");
 end
 
-function random_location:remove_table_value(tb, value)
+function random_location:delete_table_value(tb, value)
     if tb ~= nil and next(tb) ~= nil then
         for i = #tb, 1, -1 do
             if tb[i] == value then
@@ -581,16 +540,6 @@ function random_location:remove_table_value(tb, value)
             end
         end
     end
-end
-
-function random_location:get_faction_by_name(faction_name)
-    local target_faction = nil
-    cm:query_model():world():faction_list():foreach(function(faction)
-        if faction:name() == faction_name then
-            target_faction = faction
-        end
-    end)
-    return target_faction
 end
 
 function random_location:reset_camera()
@@ -608,17 +557,43 @@ end
 function random_location:diplomacy_peace()
     -- 遍历所有派系并执行和平处理
     cm:query_model():world():faction_list():foreach(function(filter_faction1)
-        if not filter_faction1:is_dead() and not filter_faction1:name() ~= "3k_main_faction_yellow_turban_generic" then
+        if not filter_faction1:is_dead() then
             cm:query_model():world():faction_list():foreach(function(filter_faction2)
-                if not filter_faction2:is_dead() and not filter_faction2:name() ~= "3k_main_faction_yellow_turban_generic" then
-                    if filter_faction1:name() ~= filter_faction2:name() then
+                if not filter_faction2:is_dead() and filter_faction1:name() ~= filter_faction2:name() then
+                    if diplomacy_manager:is_at_war_with(filter_faction1:name(), filter_faction2:name()) then
                         diplomacy_manager:apply_automatic_deal_between_factions(filter_faction1:name(),
                             filter_faction2:name(), "data_defined_situation_peace", false)
-                        diplomacy_manager:apply_automatic_deal_between_factions(filter_faction1:name(),
-                            "3k_main_faction_yellow_turban_generic", "data_defined_situation_war_proposer_to_recipient", false)
                     end
                 end
             end)
         end
     end)
+end
+
+function random_location:destroy_useless_regions()
+    if not table.is_empty(self.capital_regions) then
+        for k, capital_region_name in ipairs(self.capital_regions) do
+            -- find captial's resources
+            cm:query_model():world():region_manager():region_list():foreach(function(region)
+                if region:province_name() == capital_region_name then
+                    if region:can_raze_and_abandon_settlement_without_attacking() then
+                        cm:modify_model():get_modify_region(region):raze_and_abandon_settlement_without_attacking()
+                    end
+                    self:delete_table_value(self.minor_regions, region:name())
+                end
+            end)
+        end
+    end
+
+    if not table.is_empty(self.minor_regions) then
+        for _, minor_region_name in pairs(self.minor_regions) do
+            cm:query_model():world():region_manager():region_list():foreach(function(region)
+                if region:name() == minor_region_name then
+                    if region:can_raze_and_abandon_settlement_without_attacking() then
+                        cm:modify_model():get_modify_region(region):raze_and_abandon_settlement_without_attacking()
+                    end
+                end
+            end)
+        end
+    end
 end
